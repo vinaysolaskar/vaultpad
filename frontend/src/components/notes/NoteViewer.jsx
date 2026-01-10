@@ -4,6 +4,7 @@ import { useDebounce } from "../../hooks/useDebounce"
 
 export default function NoteViewer({ noteId, onDelete }) {
     const [note, setNote] = useState(null)
+    const [title, setTitle] = useState("")
     const [content, setContent] = useState("")
     const [isEditing, setIsEditing] = useState(false)
     const [loading, setLoading] = useState(true)
@@ -21,11 +22,12 @@ export default function NoteViewer({ noteId, onDelete }) {
 
             const { data } = await supabase
                 .from("notes")
-                .select("id, content")
+                .select("id, title, content")
                 .eq("id", noteId)
                 .single()
 
             setNote(data)
+            setTitle(data.title)
             setContent(data.content)
             lastSavedRef.current = data.content
             setIsEditing(false)
@@ -34,6 +36,13 @@ export default function NoteViewer({ noteId, onDelete }) {
 
         load()
     }, [noteId])
+
+    async function saveTitle() {
+        await supabase
+            .from("notes")
+            .update({ title })
+            .eq("id", noteId)
+    }
 
     /* Autosave only when editing */
     useEffect(() => {
@@ -89,11 +98,21 @@ export default function NoteViewer({ noteId, onDelete }) {
 
     return (
         <div className="flex-1 p-6 flex flex-col">
+            <input
+                value={title}
+                placeholder={
+                    isEditing ? "Add a Title" : "Untitled"
+                }
+                disabled={!isEditing}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={saveTitle}
+                className="text-2xl p-3 font-semibold mb-4 outline-none color-gray"
+            />
             <textarea
                 value={content}
                 readOnly={!isEditing}
                 onChange={(e) => setContent(e.target.value)}
-                className={`flex-1 resize-none outline-none ${isEditing ? "text-gray-800" : "text-gray-500"
+                className={`flex-1 p-3 resize-none outline-none ${isEditing ? "text-gray-800" : "text-gray-500"
                     }`}
                 placeholder={
                     isEditing ? "Start writing..." : "Press Edit to modify"
