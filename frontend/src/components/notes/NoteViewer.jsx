@@ -5,114 +5,42 @@ import { useDebounce } from "../../hooks/useDebounce"
 export default function NoteViewer({ noteId, onDelete }) {
     const [note, setNote] = useState(null)
     const [content, setContent] = useState("")
+    const [isEditing, setIsEditing] = useState(false)
     const [loading, setLoading] = useState(true)
     const [status, setStatus] = useState("")
-    const [isOnline, setIsOnline] = useState(navigator.onLine)
 
     const debouncedContent = useDebounce(content)
+    const lastSavedRef = useRef("")
 
-    const lastSavedContentRef = useRef("")
-    const savingRef = useRef(false)
-
-    const draftKey = `draft-${noteId}`
-
-    /* -----------------------------
-       Force save (Ctrl + S)
-    ------------------------------ */
-    async function forceSave() {
-        if (!noteId) return
-        if (savingRef.current) return
-        if (content === lastSavedContentRef.current) return
-
-        // Offline → store locally
-        if (!navigator.onLine) {
-            localStorage.setItem(draftKey, content)
-            setStatus("Saved locally")
-            return
-        }
-
-        savingRef.current = true
-        setStatus("Saving...")
-
-        const { error } = await supabase
-            .from("notes")
-            .update({
-                content,
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", noteId)
-
-        if (!error) {
-            lastSavedContentRef.current = content
-            localStorage.removeItem(draftKey)
-            setStatus("Saved")
-        }
-
-        savingRef.current = false
-    }
-
-    /* -----------------------------
-       Network status
-    ------------------------------ */
-    useEffect(() => {
-        const handleOnline = () => setIsOnline(true)
-        const handleOffline = () => setIsOnline(false)
-
-        window.addEventListener("online", handleOnline)
-        window.addEventListener("offline", handleOffline)
-
-        return () => {
-            window.removeEventListener("online", handleOnline)
-            window.removeEventListener("offline", handleOffline)
-        }
-    }, [])
-
-    /* -----------------------------
-       Load note
-    ------------------------------ */
+    /* Load note */
     useEffect(() => {
         if (!noteId) return
 
-        async function loadNote() {
+        async function load() {
             setLoading(true)
-
-            const localDraft = localStorage.getItem(draftKey)
 
             const { data } = await supabase
                 .from("notes")
-                .select("id, title, content")
+                .select("id, content")
                 .eq("id", noteId)
                 .single()
 
             setNote(data)
-            setContent(localDraft ?? data.content)
-            lastSavedContentRef.current = data.content
-
+            setContent(data.content)
+            lastSavedRef.current = data.content
+            setIsEditing(false)
             setLoading(false)
         }
 
-        loadNote()
+        load()
     }, [noteId])
 
-    /* -----------------------------
-       Autosave (debounced)
-    ------------------------------ */
+    /* Autosave only when editing */
     useEffect(() => {
-        if (!noteId || !note) return
-
-        // Always persist draft locally
-        localStorage.setItem(draftKey, debouncedContent)
-
-        if (debouncedContent === lastSavedContentRef.current) return
-        if (savingRef.current) return
+        if (!isEditing) return
+        if (debouncedContent === lastSavedRef.current) return
 
         async function save() {
-            if (!isOnline) {
-                setStatus("Saved locally")
-                return
-            }
-
-            savingRef.current = true
             setStatus("Saving...")
 
             const { error } = await supabase
@@ -124,91 +52,28 @@ export default function NoteViewer({ noteId, onDelete }) {
                 .eq("id", noteId)
 
             if (!error) {
-                lastSavedContentRef.current = debouncedContent
-                localStorage.removeItem(draftKey)
-                setNote((n) => ({ ...n, content: debouncedContent }))
+                lastSavedRef.current = debouncedContent
                 setStatus("Saved")
             }
-
-            savingRef.current = false
         }
 
         save()
-    }, [debouncedContent, isOnline])
+    }, [debouncedContent, isEditing])
 
-    /* -----------------------------
-       Sync on reconnect
-    ------------------------------ */
+    /* Keyboard shortcuts */
     useEffect(() => {
-        if (!isOnline || !noteId) return
-
-        const localDraft = localStorage.getItem(draftKey)
-        if (!localDraft) return
-
-        if (localDraft === lastSavedContentRef.current) {
-            localStorage.removeItem(draftKey)
-            return
+        const handler = (e) => {
+            if (e.key === "e") setIsEditing(true)
+            if (e.key === "Escape") setIsEditing(false)
         }
 
-        async function syncDraft() {
-            if (savingRef.current) return
+        window.addEventListener("keydown", handler)
+        return () => window.removeEventListener("keydown", handler)
+    }, [])
 
-            savingRef.current = true
-            setStatus("Syncing...")
-
-            const { error } = await supabase
-                .from("notes")
-                .update({
-                    content: localDraft,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", noteId)
-
-            if (!error) {
-                lastSavedContentRef.current = localDraft
-                setContent(localDraft)
-                localStorage.removeItem(draftKey)
-                setStatus("Saved")
-            }
-
-            savingRef.current = false
-        }
-
-        syncDraft()
-    }, [isOnline, noteId])
-
-    /* -----------------------------
-       Keyboard shortcuts
-    ------------------------------ */
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                e.preventDefault()
-                forceSave()
-            }
-
-            if (e.key === "Escape") {
-                document.activeElement?.blur()
-            }
-
-            if ((e.ctrlKey || e.metaKey) && e.key === "Backspace") {
-                e.preventDefault()
-                if (window.confirm("Delete this note?")) {
-                    onDelete(noteId)
-                }
-            }
-        }
-
-        window.addEventListener("keydown", handleKeyDown)
-        return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [noteId, content])
-
-    /* -----------------------------
-       UI
-    ------------------------------ */
     if (!noteId) {
         return (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="flex-1 flex items-center justify-center text-gray-400">
                 Select a note
             </div>
         )
@@ -226,20 +91,33 @@ export default function NoteViewer({ noteId, onDelete }) {
         <div className="flex-1 p-6 flex flex-col">
             <textarea
                 value={content}
+                readOnly={!isEditing}
                 onChange={(e) => setContent(e.target.value)}
-                className="flex-1 w-full resize-none outline-none text-gray-800"
-                placeholder="Start writing..."
+                className={`flex-1 resize-none outline-none ${isEditing ? "text-gray-800" : "text-gray-500"
+                    }`}
+                placeholder={
+                    isEditing ? "Start writing..." : "Press Edit to modify"
+                }
             />
 
             <div className="flex justify-between items-center mt-4 text-sm text-gray-500">
-                <span>{status}</span>
+                <span>{isEditing ? status : "Read only"}</span>
 
-                <button
-                    onClick={() => onDelete(note.id)}
-                    className="text-red-600 hover:underline"
-                >
-                    Delete
-                </button>
+                <div className="space-x-4">
+                    <button
+                        onClick={() => setIsEditing((v) => !v)}
+                        className="hover:underline"
+                    >
+                        {isEditing ? "Done" : "Edit"}
+                    </button>
+
+                    <button
+                        onClick={() => onDelete(note.id)}
+                        className="text-red-600 hover:underline"
+                    >
+                        Delete
+                    </button>
+                </div>
             </div>
         </div>
     )

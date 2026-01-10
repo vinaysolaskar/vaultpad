@@ -13,8 +13,8 @@ export default function NotesLayout() {
     }
 
     return (
-        <div className="flex min-h-screen">
-            <div className="w-64 border-r">
+        <div className="flex h-full">
+            <div className="w-64 border-r flex flex-col">
                 <CreateNoteButton onCreate={setActiveNoteId} />
                 <NotesList onSelect={setActiveNoteId} />
             </div>
