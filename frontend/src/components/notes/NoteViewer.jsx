@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import { useDebounce } from "../../hooks/useDebounce"
+import { useOfflineDraft } from "../../hooks/useOfflineDraft"
 import EditorFooter from "../EditorFooter"
 
 export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
-    const [note, setNote] = useState(null)
     const [title, setTitle] = useState("")
     const [content, setContent] = useState("")
     const [isEditing, setIsEditing] = useState(false)
@@ -12,9 +12,19 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
     const [status, setStatus] = useState("")
 
     const debouncedContent = useDebounce(content)
-    const lastSavedRef = useRef("")
 
-    /* Load note */
+    const lastSavedRef = useRef("")
+    const savingRef = useRef(false)
+
+    const {
+        loadDraft,
+        clearDraft,
+        markHydrated,
+    } = useOfflineDraft(noteId, title, content)
+
+    /* =========================
+       Load note (safe hydration)
+    ========================== */
     useEffect(() => {
         if (!noteId) return
 
@@ -27,10 +37,13 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
                 .eq("id", noteId)
                 .single()
 
-            setNote(data)
-            setTitle(data.title)
-            setContent(data.content)
-            lastSavedRef.current = data.content
+            const draft = loadDraft()
+
+            setTitle(draft?.title ?? data?.title ?? "")
+            setContent(draft?.content ?? data?.content ?? "")
+            lastSavedRef.current = data?.content ?? ""
+
+            markHydrated()
             setIsEditing(false)
             setLoading(false)
         }
@@ -55,12 +68,19 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
     }
 
 
-    /* Autosave only when editing */
+    /* =========================
+       Autosave (online only)
+    ========================== */
     useEffect(() => {
         if (!isEditing) return
         if (debouncedContent === lastSavedRef.current) return
 
         async function save() {
+            if (!navigator.onLine) {
+                setStatus("Offline")
+                return
+            }
+
             setStatus("Saving...")
 
             const { error } = await supabase
@@ -73,6 +93,7 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
 
             if (!error) {
                 lastSavedRef.current = debouncedContent
+                clearDraft()
                 setStatus("Saved")
             }
         }
@@ -80,9 +101,94 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
         save()
     }, [debouncedContent, isEditing])
 
-    /* Keyboard shortcuts */
+    /* =========================
+       Sync when internet returns
+    ========================== */
     useEffect(() => {
-        const handler = (e) => {
+        async function syncOnReconnect() {
+            if (!navigator.onLine || !noteId) return
+
+            const draft = loadDraft()
+            if (!draft) return
+
+            setStatus("Syncing...")
+
+            const { data } = await supabase
+                .from("notes")
+                .update({
+                    title: draft.title,
+                    content: draft.content,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", noteId)
+                .select("id, title, updated_at")
+                .single()
+
+            if (data) {
+                lastSavedRef.current = draft.content
+                clearDraft()
+                onNoteUpdate(data)
+                setStatus("Saved")
+            }
+        }
+
+        window.addEventListener("online", syncOnReconnect)
+        return () =>
+            window.removeEventListener("online", syncOnReconnect)
+    }, [noteId])
+
+    /* =========================
+       Ctrl + S (hard save)
+    ========================== */
+    useEffect(() => {
+        function handler(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                e.preventDefault()
+                forceSave()
+            }
+        }
+
+        window.addEventListener("keydown", handler)
+        return () => window.removeEventListener("keydown", handler)
+    }, [title, content])
+
+    async function forceSave() {
+        if (!navigator.onLine) {
+            setStatus("Offline")
+            return
+        }
+
+        if (savingRef.current) return
+        savingRef.current = true
+
+        setStatus("Saving...")
+
+        const { data } = await supabase
+            .from("notes")
+            .update({
+                title,
+                content,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", noteId)
+            .select("id, title, updated_at")
+            .single()
+
+        if (data) {
+            lastSavedRef.current = content
+            clearDraft()
+            onNoteUpdate(data)
+            setStatus("Saved")
+        }
+
+        savingRef.current = false
+    }
+
+    /* =========================
+       Edit mode shortcuts
+    ========================== */
+    useEffect(() => {
+        function handler(e) {
             if (e.key === "e") setIsEditing(true)
             if (e.key === "Escape") setIsEditing(false)
         }
@@ -91,42 +197,9 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
         return () => window.removeEventListener("keydown", handler)
     }, [])
 
-    useEffect(() => {
-        function handleKeyDown(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                e.preventDefault()
-                forceSave()
-            }
-        }
-
-        window.addEventListener("keydown", handleKeyDown)
-        return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [content, noteId])
-
-    async function forceSave() {
-        if (!noteId) return
-        if (savingRef.current) return
-        if (content === lastSavedContentRef.current) return
-
-        savingRef.current = true
-        setStatus("Saving...")
-
-        const { error } = await supabase
-            .from("notes")
-            .update({
-                content,
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", noteId)
-
-        if (!error) {
-            lastSavedContentRef.current = content
-            setStatus("Saved")
-        }
-
-        savingRef.current = false
-    }
-
+    /* =========================
+       Render
+    ========================== */
     if (!noteId) {
         return (
             <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -147,14 +220,15 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
         <div className="flex-1 p-6 flex flex-col">
             <input
                 value={title}
+                disabled={!isEditing}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder={
                     isEditing ? "Add a Title" : "Untitled"
                 }
-                disabled={!isEditing}
-                onChange={(e) => setTitle(e.target.value)}
                 onBlur={saveTitle}
-                className={`text-2xl p-3 font-semibold mb-4 outline-none`}
+                className="text-2xl p-3 font-semibold mb-4 outline-none"
             />
+
             <textarea
                 value={content}
                 readOnly={!isEditing}
@@ -169,8 +243,8 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
             <EditorFooter
                 isEditing={isEditing}
                 status={status}
-                onToggleEdit={() => setIsEditing((v) => !v)}
-                onDelete={() => onDelete(note.id)}
+                onToggleEdit={() => setIsEditing(v => !v)}
+                onDelete={() => onDelete(noteId)}
             />
         </div>
     )
