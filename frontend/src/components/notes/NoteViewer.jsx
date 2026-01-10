@@ -17,7 +17,42 @@ export default function NoteViewer({ noteId, onDelete }) {
     const draftKey = `draft-${noteId}`
 
     /* -----------------------------
-       Network status tracking
+       Force save (Ctrl + S)
+    ------------------------------ */
+    async function forceSave() {
+        if (!noteId) return
+        if (savingRef.current) return
+        if (content === lastSavedContentRef.current) return
+
+        // Offline → store locally
+        if (!navigator.onLine) {
+            localStorage.setItem(draftKey, content)
+            setStatus("Saved locally")
+            return
+        }
+
+        savingRef.current = true
+        setStatus("Saving...")
+
+        const { error } = await supabase
+            .from("notes")
+            .update({
+                content,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", noteId)
+
+        if (!error) {
+            lastSavedContentRef.current = content
+            localStorage.removeItem(draftKey)
+            setStatus("Saved")
+        }
+
+        savingRef.current = false
+    }
+
+    /* -----------------------------
+       Network status
     ------------------------------ */
     useEffect(() => {
         const handleOnline = () => setIsOnline(true)
@@ -65,17 +100,13 @@ export default function NoteViewer({ noteId, onDelete }) {
     useEffect(() => {
         if (!noteId || !note) return
 
-        // Always save draft locally
+        // Always persist draft locally
         localStorage.setItem(draftKey, debouncedContent)
 
-        // No meaningful change → no save
         if (debouncedContent === lastSavedContentRef.current) return
-
-        // Prevent overlapping saves
         if (savingRef.current) return
 
         async function save() {
-            // Offline → do nothing (draft already stored)
             if (!isOnline) {
                 setStatus("Saved locally")
                 return
@@ -106,7 +137,7 @@ export default function NoteViewer({ noteId, onDelete }) {
     }, [debouncedContent, isOnline])
 
     /* -----------------------------
-       Sync when network comes back
+       Sync on reconnect
     ------------------------------ */
     useEffect(() => {
         if (!isOnline || !noteId) return
@@ -120,6 +151,8 @@ export default function NoteViewer({ noteId, onDelete }) {
         }
 
         async function syncDraft() {
+            if (savingRef.current) return
+
             savingRef.current = true
             setStatus("Syncing...")
 
@@ -145,7 +178,33 @@ export default function NoteViewer({ noteId, onDelete }) {
     }, [isOnline, noteId])
 
     /* -----------------------------
-       UI states
+       Keyboard shortcuts
+    ------------------------------ */
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                e.preventDefault()
+                forceSave()
+            }
+
+            if (e.key === "Escape") {
+                document.activeElement?.blur()
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.key === "Backspace") {
+                e.preventDefault()
+                if (window.confirm("Delete this note?")) {
+                    onDelete(noteId)
+                }
+            }
+        }
+
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [noteId, content])
+
+    /* -----------------------------
+       UI
     ------------------------------ */
     if (!noteId) {
         return (
