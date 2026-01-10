@@ -1,6 +1,7 @@
 import { useAuth } from "./context/AuthContext"
 import AuthPage from "./pages/AuthPage"
 import NotesLayout from "./components/notes/NotesLayout"
+import Navbar from "./components/Navbar"
 
 function App() {
   const { user, loading } = useAuth()
@@ -16,8 +17,14 @@ function App() {
   if (!user) {
     return <AuthPage />
   }
-
-  return <NotesLayout />
+  return (
+    <div className="h-screen flex flex-col">
+      <Navbar />
+      <div className="flex-1 overflow-hidden">
+        <NotesLayout />
+      </div>
+    </div>
+  )
 }
 
 export default App
