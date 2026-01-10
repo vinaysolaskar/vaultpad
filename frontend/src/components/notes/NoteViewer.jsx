@@ -3,7 +3,7 @@ import { supabase } from "../../lib/supabase"
 import { useDebounce } from "../../hooks/useDebounce"
 import EditorFooter from "../EditorFooter"
 
-export default function NoteViewer({ noteId, onDelete }) {
+export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
     const [note, setNote] = useState(null)
     const [title, setTitle] = useState("")
     const [content, setContent] = useState("")
@@ -39,11 +39,21 @@ export default function NoteViewer({ noteId, onDelete }) {
     }, [noteId])
 
     async function saveTitle() {
-        await supabase
+        const { data, error } = await supabase
             .from("notes")
-            .update({ title })
+            .update({
+                title,
+                updated_at: new Date().toISOString(),
+            })
             .eq("id", noteId)
+            .select("id, title, updated_at")
+            .single()
+
+        if (!error && data) {
+            onNoteUpdate(data)
+        }
     }
+
 
     /* Autosave only when editing */
     useEffect(() => {
@@ -107,7 +117,7 @@ export default function NoteViewer({ noteId, onDelete }) {
                 disabled={!isEditing}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={saveTitle}
-                className="text-2xl p-3 font-semibold mb-4 outline-none color-gray"
+                className={`text-2xl p-3 font-semibold mb-4 outline-none`}
             />
             <textarea
                 value={content}
@@ -120,25 +130,6 @@ export default function NoteViewer({ noteId, onDelete }) {
                 }
             />
 
-            {/* <div className="flex justify-between items-center mt-4 text-sm text-gray-500">
-                <span>{isEditing ? status : "Read only"}</span>
-
-                <div className="space-x-4">
-                    <button
-                        onClick={() => setIsEditing((v) => !v)}
-                        className="hover:underline"
-                    >
-                        {isEditing ? "Done" : "Edit"}
-                    </button>
-
-                    <button
-                        onClick={() => onDelete(note.id)}
-                        className="text-red-600 hover:underline"
-                    >
-                        Delete
-                    </button>
-                </div>
-            </div> */}
             <EditorFooter
                 isEditing={isEditing}
                 status={status}

@@ -1,42 +1,24 @@
-import { useEffect, useState } from "react"
-import { supabase } from "../../lib/supabase"
-import { useAuth } from "../../context/AuthContext"
-
-export default function NotesList({ onSelect }) {
-    const { user } = useAuth()
-    const [notes, setNotes] = useState([])
-    const [loading, setLoading] = useState(true)
-
-    useEffect(() => {
-        async function fetchNotes() {
-            const { data, error } = await supabase
-                .from("notes")
-                .select("id, title, updated_at")
-                .eq("user_id", user.id)
-                .order("updated_at", { ascending: false })
-
-            if (!error) setNotes(data)
-            setLoading(false)
-        }
-
-        fetchNotes()
-    }, [user.id])
-
-    if (loading) return <p className="p-4">Loading notes...</p>
+export default function NotesList({
+    notes,
+    activeNoteId,
+    onSelect,
+}) {
+    if (notes.length === 0) {
+        return (
+            <p className="p-4 text-sm text-gray-500">
+                No notes yet
+            </p>
+        )
+    }
 
     return (
-        <div className="border-r w-64 overflow-y-auto">
-            {notes.length === 0 && (
-                <p className="p-4 text-sm text-gray-500">
-                    No notes yet
-                </p>
-            )}
-
+        <div className="flex-1 overflow-y-auto">
             {notes.map((note) => (
                 <button
                     key={note.id}
                     onClick={() => onSelect(note.id)}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                    className={`w-full text-left px-4 py-2 hover:bg-gray-100 ${note.id === activeNoteId ? "bg-gray-100" : ""
+                        }`}
                 >
                     <p className="font-medium truncate">
                         {note.title || "Untitled"}
