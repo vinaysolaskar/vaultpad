@@ -91,6 +91,42 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
         return () => window.removeEventListener("keydown", handler)
     }, [])
 
+    useEffect(() => {
+        function handleKeyDown(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                e.preventDefault()
+                forceSave()
+            }
+        }
+
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [content, noteId])
+
+    async function forceSave() {
+        if (!noteId) return
+        if (savingRef.current) return
+        if (content === lastSavedContentRef.current) return
+
+        savingRef.current = true
+        setStatus("Saving...")
+
+        const { error } = await supabase
+            .from("notes")
+            .update({
+                content,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", noteId)
+
+        if (!error) {
+            lastSavedContentRef.current = content
+            setStatus("Saved")
+        }
+
+        savingRef.current = false
+    }
+
     if (!noteId) {
         return (
             <div className="flex-1 flex items-center justify-center text-gray-400">
