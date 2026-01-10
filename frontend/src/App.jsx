@@ -1,5 +1,6 @@
 import { useAuth } from "./context/AuthContext"
 import AuthPage from "./pages/AuthPage"
+import NotesLayout from "./components/notes/NotesLayout"
 
 function App() {
   const { user, loading } = useAuth()
@@ -16,11 +17,7 @@ function App() {
     return <AuthPage />
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p>Authenticated – notes coming next</p>
-    </div>
-  )
+  return <NotesLayout />
 }
 
 export default App
