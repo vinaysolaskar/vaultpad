@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import { useDebounce } from "../../hooks/useDebounce"
+import EditorFooter from "../EditorFooter"
 
 export default function NoteViewer({ noteId, onDelete }) {
     const [note, setNote] = useState(null)
@@ -119,7 +120,7 @@ export default function NoteViewer({ noteId, onDelete }) {
                 }
             />
 
-            <div className="flex justify-between items-center mt-4 text-sm text-gray-500">
+            {/* <div className="flex justify-between items-center mt-4 text-sm text-gray-500">
                 <span>{isEditing ? status : "Read only"}</span>
 
                 <div className="space-x-4">
@@ -137,7 +138,13 @@ export default function NoteViewer({ noteId, onDelete }) {
                         Delete
                     </button>
                 </div>
-            </div>
+            </div> */}
+            <EditorFooter
+                isEditing={isEditing}
+                status={status}
+                onToggleEdit={() => setIsEditing((v) => !v)}
+                onDelete={() => onDelete(note.id)}
+            />
         </div>
     )
 }
