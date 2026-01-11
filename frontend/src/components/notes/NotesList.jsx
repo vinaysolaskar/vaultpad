@@ -42,7 +42,13 @@ export default function NotesList({
                             {note.title || "Untitled"}
                         </p>
                         <p className="text-xs text-gray-500">
-                            {new Date(note.updated_at).toLocaleString()}
+                            Created {new Date(note.created_at).toLocaleDateString()}
+                            {note.updated_at &&
+                                note.updated_at !== note.created_at && (
+                                    <span className="ml-2">
+                                        · Edited {new Date(note.updated_at).toLocaleDateString()}
+                                    </span>
+                                )}
                         </p>
                     </button>
                 ))}

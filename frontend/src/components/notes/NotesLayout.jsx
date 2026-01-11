@@ -20,7 +20,7 @@ export default function NotesLayout() {
 
         const { data, error } = await supabase
             .from("notes")
-            .select("id, title, updated_at")
+            .select("id, title, created_at, updated_at")
             .eq("user_id", user.id)
             .order("updated_at", { ascending: false })
 
