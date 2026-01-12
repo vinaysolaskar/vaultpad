@@ -49,7 +49,7 @@ export default function NoteEditor({ noteId, onDelete, onNoteUpdate, noteData })
     }
 
     return (
-        <div className="flex flex-col h-full max-w-4xl mx-auto w-full px-4 md:px-12 animate-in fade-in duration-500">
+        <div className="flex flex-col h-full max-w-4xl mx-auto w-full px-4 md:px-12 animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out">
             {/* Metadata Header */}
             <div className="py-8 border-b border-[#2F2F2F] mb-8 flex flex-wrap gap-6 items-center">
                 <div className="flex flex-col">
@@ -77,7 +77,7 @@ export default function NoteEditor({ noteId, onDelete, onNoteUpdate, noteData })
                     maxLength={50}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Untitled"
-                    className="text-4xl font-bold bg-transparent outline-none placeholder:text-[#373737] mb-6 text-[#EBEBEB] w-full border-none focus:ring-0"
+                    className="text-4xl font-bold bg-transparent outline-none placeholder:text-[#373737] mb-6 text-[#EBEBEB] w-full border-none focus:ring-0 whitespace-normal break-words"
                 />
                 <textarea
                     value={content}
