@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { loadNotesCache, removeNoteFromCache, saveNotesCache } from "../data/notes.cache"
 import { fetchNotes, deleteNote } from "../data/notes.service"
 import { useOfflineQueue, queueOperation } from "./useOfflineQueue"
+import { supabase } from "../lib/supabase"
 
 export function useNotes(user) {
   const [notes, setNotes] = useState([])
