@@ -1,52 +1,70 @@
-# Vaultpad
+# 🛡️ Vaultpad
 
-Vaultpad is a secure, private personal notes vault.
+Vaultpad is a simple, private place for your notes. No distractions, just your thoughts.
 
-Notes are private by default and strictly owned by the authenticated user.
-All authorization is enforced at the database level using Supabase Row Level Security (RLS).
+Live Demo: [https://vaultpad.netlify.app/]
 
----
-
-## Tech Stack
-
-**Frontend**
-- React + Vite
-- Tailwind CSS
-- Supabase JavaScript Client
-
-**Backend (BaaS)**
-- Supabase Authentication
-- PostgreSQL
-- Row Level Security (RLS)
-
-**Deployment**
-- Netlify
+Tech Stack: React, Tailwind CSS, Supabase.
 
 ---
+## 🚀 Key Features
 
-## Core Principles
+**Clean Writing Space**: A simple layout inspired by Notion.
 
-- No custom backend server
-- No frontend-only security
-- No shared or public notes
-- Ownership enforced via `auth.uid() = user_id`
-- Calm, distraction-free UI
+**Smart Autosave**: Saves your work automatically 1 second after you stop typing.
 
----
+**Edit & Sync**: Update your notes anytime; changes sync instantly to the cloud.
 
-## Security Model (High Level)
+**Offline Ready**: Uses local state management so you can keep writing even if your connection dips.
 
-- Each note row contains a `user_id` column
-- Row Level Security (RLS) policies restrict:
-  - SELECT, INSERT, UPDATE, DELETE
-- Users can only access rows where:
-  `auth.uid() = user_id`
-- Frontend filtering is never trusted for authorization
+**Mobile Friendly**: Works great on phones and tablets.
 
 ---
+## 🔐 Security (Privacy First)
+**Private by Default**: Only you can see your notes.
 
-## Setup & Usage
+**Database Security**: We use "Row Level Security" (RLS). This means the database itself blocks anyone who isn't you.
 
-Setup instructions and deployment details will be added after initial implementation.
+**Safe Login**: Secure sign-in using Email or Google.
 
 ---
+## 🛠️ Tech Stack
+| Layer            | Technology                     |
+|------------------|--------------------------------|
+| Frontend         | React + Vite                   |
+| Styling          | Tailwind CSS                   |
+| Database & Auth  | Supabase (PostgreSQL)          |
+| Icons            | Lucide React                   |
+
+---
+## 🛠 Setup & Local Development
+Clone the project 
+  ```bash
+    git clone https://github.com/vinaysolaskar/vaultpad.git 
+    Install npm install
+  ```
+Environment Variables:
+Create a .env file in the project root with:
+  ```bash
+    VITE_SUPABASE_URL=your_supabase_project_url
+    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+  ```
+
+Supabase Setup
+
+- Create a notes table in Supabase
+- Enable Row Level Security
+- Add a policy that allows all actions only when: auth.uid() = user_id
+
+Run Locally
+  ```bash
+    Start npm run dev
+  ```
+
+📜 Principles
+
+**Calm**: No tags, no folders, no clutter.
+
+**Secure**: Data ownership is controlled by the database, not just the UI.
+
+**Reliable**: Your notes save automatically so you never lose a word.
