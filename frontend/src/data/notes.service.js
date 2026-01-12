@@ -5,16 +5,25 @@ import { saveNotesCache, removeNoteFromCache } from "./notes.cache"
 const user = supabase.auth.getUser()
 
 export async function fetchNotes(userId) {
-  if (!navigator.onLine) return null
+  if (!navigator.onLine) return null;
 
-  const { data } = await supabase
-    .from("notes")
-    .select("id, title, created_at, updated_at")
-    .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
+  try {
+    const { data, error } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
 
-  if (data) saveNotesCache(data)
-  return data || []
+    if (error) {
+      console.warn("Supabase error caught:", error.message);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    // This catch block prevents the "Network Error" popup
+    console.error("Network fetch failed silently:", err);
+    return null;
+  }
 }
 
 export async function deleteNote(noteId) {
