@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import NotesList from "./NotesList"
-import NoteViewer from "./NoteViewer"
+import NoteEditor from "./NoteEditor"
 import CreateNoteButton from "./CreateNoteButton"
 import { supabase } from "../../lib/supabase"
 import { useAuth } from "../../context/AuthContext"
@@ -11,10 +11,9 @@ export default function NotesLayout() {
     const [notes, setNotes] = useState([])
     const [activeNoteId, setActiveNoteId] = useState(null)
     const [loading, setLoading] = useState(true)
-
     const NOTES_CACHE_KEY = "offline:notes"
 
-    function loadCachedNotes() {
+    const loadCachedNotes = () => {
         try {
             return JSON.parse(localStorage.getItem(NOTES_CACHE_KEY)) || []
         } catch {
@@ -22,7 +21,7 @@ export default function NotesLayout() {
         }
     }
 
-    function saveCachedNotes(notes) {
+    const saveCachedNotes = (notes) => {
         localStorage.setItem(NOTES_CACHE_KEY, JSON.stringify(notes))
     }
 
@@ -32,7 +31,6 @@ export default function NotesLayout() {
 
     async function loadNotes() {
         setLoading(true)
-
         if (!navigator.onLine) {
             const cached = loadCachedNotes()
             setNotes(cached)
@@ -47,23 +45,15 @@ export default function NotesLayout() {
             .eq("user_id", user.id)
             .order("updated_at", { ascending: false })
 
-        if (!data && navigator.onLine) {
-            clearDraft()
-            setTitle("")
-            setContent("")
-            return
-        }
-
-        if (!error) {
-            setNotes(data || [])
+        if (!error && data) {
+            setNotes(data)
             setActiveNoteId(data?.[0]?.id ?? null)
-            saveCachedNotes(data || [])
+            saveCachedNotes(data)
         }
-
         setLoading(false)
     }
 
-    async function handleDelete(noteId) {
+    const handleDelete = async (noteId) => {
         setNotes((prev) => {
             const next = prev.filter((n) => n.id !== noteId)
             saveCachedNotes(next)
@@ -77,10 +67,10 @@ export default function NotesLayout() {
             return
         }
 
-        await supabase.from("notes").delete().eq("id", noteId)
+        await supabase.from("notes").delete().eq("id", noteId).eq("user_id", user.id)
     }
 
-    function handleNoteUpdate(updatedNote) {
+    const handleNoteUpdate = (updatedNote) => {
         setNotes((prev) =>
             prev.map((n) =>
                 n.id === updatedNote.id
@@ -90,16 +80,11 @@ export default function NotesLayout() {
         )
     }
 
-    if (loading) {
-        return (
-            <div className="flex-1 flex items-center justify-center">
-                Loading...
-            </div>
-        )
-    }
+    if (loading) return <div className="flex-1 flex items-center justify-center">Loading...</div>
 
     return (
         <div className="flex h-full">
+            {/* Sidebar */}
             <div className="w-64 border-r flex flex-col">
                 <CreateNoteButton
                     onCreate={(id) => {
@@ -107,15 +92,11 @@ export default function NotesLayout() {
                         loadNotes()
                     }}
                 />
-
-                <NotesList
-                    notes={notes}
-                    activeNoteId={activeNoteId}
-                    onSelect={setActiveNoteId}
-                />
+                <NotesList notes={notes} activeNoteId={activeNoteId} onSelect={setActiveNoteId} />
             </div>
 
-            <NoteViewer
+            {/* Editor */}
+            <NoteEditor
                 key={activeNoteId}
                 noteId={activeNoteId}
                 onDelete={handleDelete}

@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { supabase } from "../lib/supabase"
 
 const QUEUE_KEY = "offline:queue"
+const user = supabase.auth.getUser()
 
 function loadQueue() {
   try {
@@ -38,6 +39,7 @@ export function useOfflineQueue() {
               .from("notes")
               .update(job.payload)
               .eq("id", job.noteId)
+              .eq("user_id", user.id)
           }
 
           if (job.type === "delete") {
@@ -45,6 +47,7 @@ export function useOfflineQueue() {
               .from("notes")
               .delete()
               .eq("id", job.noteId)
+              .eq("user_id", user.id)
 
             const cached = JSON.parse(localStorage.getItem("offline:notes") || "[]")
             localStorage.setItem("offline:notes",
