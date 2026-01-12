@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import { useDebounce } from "../../hooks/useDebounce"
 import { useOfflineDraft } from "../../hooks/useOfflineDraft"
+import { queueOperation } from "../../hooks/useOfflineQueue"
 import EditorFooter from "../EditorFooter"
 
 export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
@@ -18,9 +19,28 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
     const lastSavedContentRef = useRef("")
     const isHydratedRef = useRef(false)
     const savingRef = useRef(false)
+    const loadingNoteRef = useRef(false)
 
     const { loadDraft, clearDraft, markHydrated } =
         useOfflineDraft(noteId, title, content)
+
+    useEffect(() => {
+        function updateStatus() {
+            if (!navigator.onLine) {
+                setStatus("Offline")
+            }
+        }
+
+        window.addEventListener("offline", updateStatus)
+        window.addEventListener("online", updateStatus)
+
+        updateStatus()
+
+        return () => {
+            window.removeEventListener("offline", updateStatus)
+            window.removeEventListener("online", updateStatus)
+        }
+    }, [])
 
     /* =========================
        Load note (safe hydration)
@@ -30,6 +50,7 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
 
         async function load() {
             setLoading(true)
+            loadingNoteRef.current = true
             isHydratedRef.current = false
 
             const { data } = await supabase
@@ -51,7 +72,10 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
 
             markHydrated()
             isHydratedRef.current = true
+            savingRef.current = false
+            setStatus("")
             setIsEditing(false)
+            loadingNoteRef.current = false
             setLoading(false)
         }
 
@@ -62,11 +86,22 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
        Autosave TITLE
     ========================== */
     useEffect(() => {
+        if (!noteId) return
         if (!isEditing) return
         if (!isHydratedRef.current) return
         if (debouncedTitle === lastSavedTitleRef.current) return
+
         if (!navigator.onLine) {
-            setStatus("Offline")
+            queueOperation({
+                type: "update",
+                noteId,
+                payload: {
+                    title: debouncedTitle,
+                    updated_at: new Date().toISOString(),
+                },
+            })
+            lastSavedTitleRef.current = debouncedTitle
+            setStatus("Offline (queued)")
             return
         }
 
@@ -91,17 +126,28 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
         }
 
         saveTitle()
-    }, [debouncedTitle])
+    }, [debouncedTitle, noteId])
 
     /* =========================
        Autosave CONTENT
     ========================== */
     useEffect(() => {
+        if (!noteId) return
         if (!isEditing) return
         if (!isHydratedRef.current) return
         if (debouncedContent === lastSavedContentRef.current) return
+
         if (!navigator.onLine) {
-            setStatus("Offline")
+            queueOperation({
+                type: "update",
+                noteId,
+                payload: {
+                    content: debouncedContent,
+                    updated_at: new Date().toISOString(),
+                },
+            })
+            lastSavedContentRef.current = debouncedContent
+            setStatus("Offline (queued)")
             return
         }
 
@@ -123,7 +169,7 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
         }
 
         saveContent()
-    }, [debouncedContent])
+    }, [debouncedContent, noteId])
 
     /* =========================
        Ctrl + S (hard save)
@@ -142,10 +188,21 @@ export default function NoteViewer({ noteId, onDelete, onNoteUpdate }) {
 
     async function forceSave() {
         if (!isHydratedRef.current) return
+
         if (!navigator.onLine) {
-            setStatus("Offline")
+            queueOperation({
+                type: "update",
+                noteId,
+                payload: {
+                    title,
+                    content,
+                    updated_at: new Date().toISOString(),
+                },
+            })
+            setStatus("Offline (queued)")
             return
         }
+
         if (savingRef.current) return
 
         savingRef.current = true
