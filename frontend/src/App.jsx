@@ -22,11 +22,8 @@ function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      <Navbar />
-      <div className="flex-1 overflow-hidden">
-        <NotesLayout />
-      </div>
+    <div className="flex-1 overflow-hidden">
+      <NotesLayout />
     </div>
   )
 }

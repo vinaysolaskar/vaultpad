@@ -5,7 +5,7 @@ export default function EditorFooter({
     onDelete,
 }) {
     return (
-        <div className="flex justify-between items-center mt-4 text-sm text-gray-500">
+        <div className="flex justify-between items-center w-full min-w-[280px]  text-sm text-gray-500">
             <span>{isEditing ? status : "Read only"}</span>
 
             <div className="space-x-4">
