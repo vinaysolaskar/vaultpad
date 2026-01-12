@@ -61,15 +61,20 @@ export function useNotes(user) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("notes")
-      .insert({ user_id: user.id, title: "", content: "" })
-      .select("id")
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("notes")
+        .insert({ user_id: user.id, title: "", content: "" })
+        .select("id")
+        .single();
 
-    if (data) {
-      setNotes(prev => prev.map(n => n.id === tempId ? { ...n, id: data.id, isTemp: false } : n));
-      setActiveId(data.id);
+      if (data) {
+        setNotes(prev => prev.map(n => n.id === tempId ? { ...n, id: data.id } : n));
+        setActiveId(data.id);
+        saveNotesCache(loadNotesCache().map(n => n.id === tempId ? { ...n, id: data.id } : n));
+      }
+    } catch (err) {
+      queueOperation({ type: "create", noteId: tempId, payload: { user_id: user.id } });
     }
   }
 

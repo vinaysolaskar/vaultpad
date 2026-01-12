@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useDebounce } from "./useDebounce";
 import { useOfflineDraft } from "./useOfflineDraft";
 import { queueOperation } from "./useOfflineQueue";
+import { loadNotesCache } from "../data/notes.cache";
 
 export function useNoteEditor(noteId, onNoteUpdate) {
   const { user } = useAuth();
@@ -29,24 +30,34 @@ export function useNoteEditor(noteId, onNoteUpdate) {
     isHydratedRef.current = false;
 
     async function load() {
-      if (!navigator.onLine) {
-        const draft = loadDraft();
-        const cached = loadNotesCache().find(n => n.id === noteId);
-        setTitle(draft?.title || cached?.title || "");
-        setContent(draft?.content || cached?.content || "");
-        setLoading(false);
-        return;
+      let dbData = null;
+
+      if (navigator.onLine) {
+        try {
+          const { data } = await supabase
+            .from("notes")
+            .select("id, title, content")
+            .eq("id", noteId)
+            .eq("user_id", user.id)
+            .single();
+          dbData = data;
+        } catch (err) {
+          console.error("DB Load failed, falling back to cache", err);
+        }
       }
 
-      const { data } = await supabase.from("notes").select("id, title, content").eq("id", noteId).eq("user_id", user.id).single();
       const draft = loadDraft();
-      const finalTitle = draft?.title ?? data?.title ?? "";
-      const finalContent = draft?.content ?? data?.content ?? "";
+      const cached = loadNotesCache().find((n) => n.id === noteId);
+
+      const finalTitle = draft?.title ?? dbData?.title ?? cached?.title ?? "";
+      const finalContent = draft?.content ?? dbData?.content ?? cached?.content ?? "";
 
       setTitle(finalTitle);
       setContent(finalContent);
+
       lastSavedTitleRef.current = finalTitle;
       lastSavedContentRef.current = finalContent;
+
       markHydrated();
       isHydratedRef.current = true;
       setIsEditing(false);
@@ -67,7 +78,11 @@ export function useNoteEditor(noteId, onNoteUpdate) {
         queueOperation({
           type: "update",
           noteId,
-          payload: { [field]: value, user_id: user.id, updated_at: new Date().toISOString() },
+          payload: {
+            [field]: value,
+            user_id: user.id,
+            updated_at: new Date().toISOString()
+          },
         });
         lastRef.current = value;
         setStatus("Offline (queued)");
@@ -75,10 +90,16 @@ export function useNoteEditor(noteId, onNoteUpdate) {
       }
 
       setStatus("Saving...");
-      const { data, error } = await supabase.from("notes").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", noteId).eq("user_id", user.id).select("id, title, updated_at").eq("user_id", user.id).single();
+      const { data, error } = await supabase
+        .from("notes")
+        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .eq("id", noteId)
+        .eq("user_id", user.id)
+        .select("id, title, updated_at")
+        .single();
+
       if (!error && data) {
         lastRef.current = value;
-        clearDraft();
         onNoteUpdate(data);
         setStatus("Saved");
       }
@@ -86,20 +107,31 @@ export function useNoteEditor(noteId, onNoteUpdate) {
 
     save("title", debouncedTitle);
     save("content", debouncedContent);
-  }, [debouncedTitle, debouncedContent]);
+  }, [debouncedTitle, debouncedContent, isEditing, noteId]);
 
-  // Force Save & Keyboard Shortcuts
   const forceSave = async () => {
     if (!isHydratedRef.current || savingRef.current || !noteId) return;
+
     if (!navigator.onLine) {
-      queueOperation({ type: "update", noteId, payload: { title, content, updated_at: new Date().toISOString() } });
+      queueOperation({
+        type: "update",
+        noteId,
+        payload: { title, content, updated_at: new Date().toISOString() }
+      });
       setStatus("Offline (queued)");
       return;
     }
 
     savingRef.current = true;
     setStatus("Saving...");
-    const { data } = await supabase.from("notes").update({ title, content, updated_at: new Date().toISOString() }).eq("id", noteId).select("id, title, updated_at").eq("user_id", user.id).single();
+    const { data } = await supabase
+      .from("notes")
+      .update({ title, content, updated_at: new Date().toISOString() })
+      .eq("id", noteId)
+      .eq("user_id", user.id)
+      .select("id, title, updated_at")
+      .single();
+
     if (data) {
       lastSavedTitleRef.current = title;
       lastSavedContentRef.current = content;
@@ -121,7 +153,7 @@ export function useNoteEditor(noteId, onNoteUpdate) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [title, content]);
+  }, [title, content, noteId]);
 
   return { title, setTitle, content, setContent, isEditing, setIsEditing, status, loading };
 }

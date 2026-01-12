@@ -48,10 +48,15 @@ export function useOfflineQueue(userId, onSyncSuccess) {
           }
 
           else if (job.type === "create") {
-            const { data, error } = await supabase.from("notes").insert(job.payload).select("id").single();
+            const draft = JSON.parse(localStorage.getItem(`draft:${job.noteId}`) || "null");
+            const finalPayload = {
+              ...job.payload,
+              title: draft?.title || job.payload.title || "",
+              content: draft?.content || job.payload.content || ""
+            };
+            const { data, error } = await supabase.from("notes").insert(finalPayload).select("id").single();
 
             if (error) {
-              // If 409 Conflict, it means it's already in the DB. Treat as success.
               if (error.code === '23505') {
                 console.log("Note already exists, skipping create...");
               } else {
